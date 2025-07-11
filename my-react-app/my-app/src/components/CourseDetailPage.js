@@ -162,6 +162,11 @@ const CourseDetailPage = () => {
     Notifications
   </Nav.Link>
 </Nav.Item>
+ <Nav.Item>
+                <Nav.Link as={Link} to={`/instructor/courses/${courseId}/students-transcript`}>
+                  Greade submission
+                </Nav.Link>
+              </Nav.Item>
             </Nav>
             
             <Button 

@@ -61,6 +61,7 @@ app.use('/api', require('./src/routes/scheduleRoutes'));
 app.use('/api/instructors', require('./src/routes/instructordashboardRoutes'));
 app.use('/api/submissions', require('./src/routes/submissionRoutes'));
 app.use('/api/notifications', require('./src/routes/notificationRoutes'));
+app.use('/api', require('./src/routes/transcriptRoutes'));
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });

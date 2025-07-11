@@ -27,6 +27,7 @@ import AddCourse from './components/AddCourses';
 import AdminRegister from './components/AdminRegister';
 import ManageCourses from './components/ManageCourses';
 import AssignInstructure from './components/AssignInstructure';
+import StudentsTranscript from './components/StudentsTranscript';
 
 
 function App() {
@@ -63,6 +64,7 @@ function App() {
           <Route path="assignment-list" element={<AssignmentsList />} />
           <Route path="UploadAssignment" element={<UploadAssignment />} />
           <Route path="material-list" element={<MaterialLists/>} />
+          <Route path="students-transcript" element={<StudentsTranscript/>} />
           {/* You can add a default overview route like this: */}
           {/* <Route index element={<div>Course Overview</div>} /> */}
         </Route>
