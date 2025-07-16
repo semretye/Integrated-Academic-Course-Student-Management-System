@@ -38,7 +38,7 @@ const courseSchema = new mongoose.Schema({
   },
   instructor: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Instructure',
     validate: {
       validator: async function(instructorId) {
         if (!instructorId) return true; // Allow null/undefined
@@ -50,7 +50,7 @@ const courseSchema = new mongoose.Schema({
   },
 students: [{
   type: mongoose.Schema.Types.ObjectId,
-  ref: 'User',
+  ref: 'Student',
   validate: {
     validator: async function(id) {
       // Check both User and Student models

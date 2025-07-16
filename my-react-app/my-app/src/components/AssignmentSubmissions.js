@@ -29,8 +29,7 @@ const AssignmentSubmissions = () => {
         },
         responseType: 'blob'
       });
-
-      // Create a download link
+      
       const blob = new Blob([response.data]);
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');

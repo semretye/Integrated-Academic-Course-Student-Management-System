@@ -5,7 +5,6 @@ const Admin = require('../models/Admin');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 
-// Helper function to find user by role
 const findUserByRole = async (username, role) => {
   switch(role) {
     case 'student':

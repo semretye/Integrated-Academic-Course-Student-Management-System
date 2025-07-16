@@ -8,7 +8,10 @@ const Grade = require('../models/Grade');
 const Submission = require('../models/Submission');
 const Assignment = require('../models/Assignment');
 const Course = require('../models/Course');
+const Transcript = require('../models/Transcript');
 const Message = require('../models/Message');
+const AppError = require('../utils/appError');
+
 const Notification = require('../models/Notification');
 const path = require('path');
 
@@ -153,6 +156,94 @@ exports.registerStudent = async (req, res) => {
     });
   }
 };
+
+exports.getStudentTranscript = async (req, res, next) => {
+  try {
+    // 1) Get the logged-in student's ID from req.user (set by protect middleware)
+    const studentId = req.user.id;
+
+    // 2) Verify the student exists
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return next(new AppError('No student found with that ID', 404));
+    }
+
+    // 3) Get all transcripts for the student with course details
+    const transcripts = await Transcript.find({ student: studentId })
+      .populate({
+        path: 'course',
+        select: 'code name credits department'
+      })
+      .sort({ academicYear: 1, semester: 1 });
+
+    // 4) Calculate GPA statistics
+    let totalCredits = 0;
+    let totalGradePoints = 0;
+    const semesterData = {};
+
+    transcripts.forEach(transcript => {
+      // Skip if course is null (in case it was deleted)
+      if (!transcript.course) return;
+
+      const credits = transcript.creditsEarned || transcript.course.credits;
+      totalCredits += credits;
+      totalGradePoints += (transcript.gpaPoints * credits);
+      
+      const semesterKey = `${transcript.academicYear}-${transcript.semester}`;
+      if (!semesterData[semesterKey]) {
+        semesterData[semesterKey] = {
+          semester: transcript.semester,
+          academicYear: transcript.academicYear,
+          credits: 0,
+          gradePoints: 0,
+          courses: []
+        };
+      }
+      
+      semesterData[semesterKey].credits += credits;
+      semesterData[semesterKey].gradePoints += (transcript.gpaPoints * credits);
+      semesterData[semesterKey].courses.push({
+        courseCode: transcript.course.code,
+        courseName: transcript.course.name,
+        credits: credits,
+        grade: transcript.grade,
+        gpaPoints: transcript.gpaPoints
+      });
+    });
+
+    // 5) Calculate semester GPAs
+    const semesters = Object.values(semesterData).map(semester => ({
+      ...semester,
+      semesterGPA: semester.credits > 0 ? semester.gradePoints / semester.credits : 0
+    }));
+
+    // 6) Calculate cumulative GPA
+    const cumulativeGPA = totalCredits > 0 ? totalGradePoints / totalCredits : 0;
+
+    // 7) Send response
+    res.status(200).json({
+      status: 'success',
+      data: {
+        student: {
+          id: student._id,
+          name: student.name,
+          studentId: student.studentId,
+          program: student.program
+        },
+        transcripts,
+        semesters,
+        summary: {
+          totalCredits,
+          cumulativeGPA: parseFloat(cumulativeGPA.toFixed(2))
+        }
+      }
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getStudentMessages = async (req, res) => {
   try {
     const studentId = req.user._id;
@@ -173,11 +264,11 @@ exports.getStudentMessages = async (req, res) => {
     });
   }
 };
+
 exports.submitAssignment = async (req, res) => {
   try {
     const studentId = req.user._id;
     const assignmentId = req.params.assignmentId;
-
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
@@ -208,6 +299,7 @@ exports.submitAssignment = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
 exports.getSubmittedAssignments = async (req, res, next) => {
   try {
     const studentId = req.user.id;
@@ -803,6 +895,35 @@ exports.markNotificationAsRead = async (req, res) => {
     });
   }
 };
+exports.getAvailableCourses = async (req, res) => {
+  try {
+    const student = await Student.findById(req.user._id).select('enrolledCourses');
+    
+    const courses = await Course.find({ status: 'active' })
+      .populate({
+        path: 'instructor',
+        select: 'firstName lastName'
+      })
+      .lean(); // Use lean() for better performance
 
+    // Add enrollment info for each course
+    const coursesWithEnrollment = courses.map(course => ({
+      ...course,
+      studentCount: course.students.length,
+      isEnrolled: student.enrolledCourses.some(id => id.equals(course._id))
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: coursesWithEnrollment
+    });
+  } catch (err) {
+    console.error('Error fetching available courses:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch available courses'
+    });
+  }
+};
 
 // Get available courses (not enrolled yet)

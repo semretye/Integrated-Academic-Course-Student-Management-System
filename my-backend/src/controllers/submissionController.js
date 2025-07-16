@@ -30,6 +30,7 @@ const formatSubmissionResponse = (submission) => {
     files
   };
 };
+
 exports.getSubmissionsByStudent = async (req, res) => {
   try {
     const studentId = req.user._id;
@@ -47,7 +48,7 @@ exports.getSubmissionsByStudent = async (req, res) => {
       .populate('assignment', 'title dueDate')
       .populate('course', 'name code')
       .sort({ submittedAt: -1 });
-
+    
     res.status(200).json({ success: true, data: submissions });
   } catch (error) {
     console.error('Get submissions error:', error);

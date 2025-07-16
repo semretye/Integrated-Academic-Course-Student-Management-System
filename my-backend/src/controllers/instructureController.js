@@ -421,7 +421,6 @@ exports.getSubmissionFile = async (req, res) => {
       });
     }
 
-    // Verify the instructor is assigned to this course
     const isAssigned = await AssignedCourse.findOne({
       courseId: submission.course._id,
       instructorId: req.user._id
@@ -455,6 +454,7 @@ exports.getSubmissionFile = async (req, res) => {
     });
   }
 };
+
 exports.downloadAssignmentFile = async (req, res) => {
   const { assignmentId } = req.params;
 

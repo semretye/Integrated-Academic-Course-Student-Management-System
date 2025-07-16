@@ -1,11 +1,10 @@
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
-
 const AssignedCourse = require('../models/AssignedCourse');
- // Add this import
- // Add this import
+
 const fs = require('fs');
 const path = require('path');
+
 // Create assignment
 exports.createAssignment = async (req, res) => {
   const { courseId } = req.params;
@@ -31,12 +30,9 @@ exports.createAssignment = async (req, res) => {
   }
 };
 
-// Get all assignments for a course
-// Get all assignments for a course for the authenticated student
 exports.getAssignmentsByCourse = async (req, res) => {
   const { courseId } = req.params;
-  const studentId = req.user?.id; // Assuming student ID is in the JWT token
-
+  const studentId = req.user?.id; // Assuming student ID is in the JWT token\\
   try {
     const assignments = await Assignment.find({ courseId });
 
@@ -96,6 +92,7 @@ exports.getAssignmentsByCourse = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch assignments.' });
   }
 };
+
 exports.downloadAssignmentFile = async (req, res) => {
   try {
     // Verify authentication

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Container, Row, Col, Tab, Nav, Spinner, Alert, Button, 
-  Card, Form, Badge, Image, Navbar, Dropdown, Modal
+  Card, Form, Badge, Image, Navbar, Dropdown, Modal, ListGroup
 } from 'react-bootstrap';
 import {
   Speedometer2, JournalBookmark, Calendar3, ListTask, 
@@ -15,6 +15,7 @@ import Schedule from './Schedule';
 import Assignments from './Assignments';
 import Grades from './Grades';
 import Messages from './Messages';
+import MyTranscripts from './MyTranscripts';
 import Settings from './Settings';
 
 function StudentHomePage() {
@@ -39,65 +40,84 @@ function StudentHomePage() {
         headers: { 'Authorization': `Bearer ${token}` }
       };
 
-      // Fetch student data
-      const studentRes = await axios.get('http://localhost:8080/api/students/me', config);
+      // Fetch student data with enrolled courses populated
+      const studentRes = await axios.get('http://localhost:8080/api/students/me', {
+        ...config,
+        params: { populate: 'enrolledCourses' }
+      });
+      
+      if (!studentRes.data.success) {
+        throw new Error(studentRes.data.message || 'Failed to fetch student data');
+      }
+
       setStudent(studentRes.data.data);
-
-      // Fetch available courses
-      const coursesRes = await axios.get('http://localhost:8080/api/courses/available', config);
-      const enrolledCourses = studentRes.data.data.enrolledCourses || [];
-
-      setCourses(coursesRes.data.data.map(course => ({
-        ...course,
-        isEnrolled: enrolledCourses.some(ec => ec._id === course._id)
-      })));
-
-      setLoading(false);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load data.');
+      console.error('Student data fetch error:', {
+        message: err.message,
+        response: err.response?.data
+      });
+      setError(err.response?.data?.message || 'Failed to load student data.');
       setLoading(false);
     }
   };
 
-const fetchNotifications = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('http://localhost:8080/api/students/notifications', {
-      headers: { 'Authorization': `Bearer ${token}` },
-      params: { timestamp: Date.now() } // Cache buster
-    });
-
-    console.log('Full API response:', response); // Debug log
-
-    if (response.data && response.data.success) {
-      const notifications = response.data.data || [];
+  const fetchAvailableCourses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/students/courses/available', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       
-      // Process notifications with proper date handling
-      const processedNotifications = notifications.map(notif => ({
-        ...notif,
-        createdAt: new Date(notif.createdAt),
-        isRead: notif.isRead || false,
-        course: notif.course || { name: 'General', code: '' },
-        postedBy: notif.postedBy || { firstName: 'System', lastName: '' }
-      }));
-
-      console.log('Processed notifications:', processedNotifications); // Debug log
-
-      setNotifications(processedNotifications);
-      setUnreadCount(processedNotifications.filter(n => !n.isRead).length);
-    } else {
-      console.error('Invalid response structure:', response.data);
-      throw new Error('Invalid notification response structure');
+      if (response.data.success) {
+        // Merge with student's enrollment status
+        const coursesWithEnrollment = response.data.data.map(course => ({
+          ...course,
+          isEnrolled: student?.enrolledCourses?.some(ec => ec._id === course._id) || false,
+          studentCount: course.students?.length || 0
+        }));
+        setCourses(coursesWithEnrollment);
+      }
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+      setError('Failed to load available courses');
     }
-  } catch (error) {
-    console.error('Notification fetch failed:', {
-      error: error.response?.data || error.message,
-      status: error.response?.status
-    });
-    setNotifications([]);
-    setUnreadCount(0);
-  }
-};
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:8080/api/students/notifications', {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { timestamp: Date.now() } // Cache buster
+      });
+
+      if (response.data && response.data.success) {
+        const notifications = response.data.data || [];
+        
+        // Process notifications with proper date handling
+        const processedNotifications = notifications.map(notif => ({
+          ...notif,
+          createdAt: new Date(notif.createdAt),
+          isRead: notif.isRead || false,
+          course: notif.course || { name: 'General', code: '' },
+          postedBy: notif.postedBy || { firstName: 'System', lastName: '' }
+        }));
+
+        setNotifications(processedNotifications);
+        setUnreadCount(processedNotifications.filter(n => !n.isRead).length);
+      } else {
+        console.error('Invalid response structure:', response.data);
+        throw new Error('Invalid notification response structure');
+      }
+    } catch (error) {
+      console.error('Notification fetch failed:', {
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      });
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
 
   const markAsRead = async (notificationId) => {
     try {
@@ -118,25 +138,56 @@ const fetchNotifications = async () => {
       const token = localStorage.getItem('token');
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
 
-      const res = await axios.post(`http://localhost:8080/api/courses/${courseId}/enroll`, {}, config);
-      setNotification({ message: res.data.message || 'Enrolled successfully!', variant: 'success' });
+      const res = await axios.post(
+        `http://localhost:8080/api/courses/${courseId}/enroll`, 
+        {}, 
+        config
+      );
+      
+      setNotification({ 
+        message: res.data.message || 'Enrolled successfully!', 
+        variant: 'success' 
+      });
 
-      setCourses(prev => prev.map(course => 
-        course._id === courseId ? { ...course, isEnrolled: true } : course
-      ));
-    } catch (err) {
-      setNotification({ message: err.response?.data?.message || 'Enrollment failed.', variant: 'danger' });
+      // Refresh both student data and courses
+      await fetchStudentData();
+      await fetchAvailableCourses();
+    } catch (err) {   
+      setNotification({ 
+        message: err.response?.data?.message || 'Enrollment failed.', 
+        variant: 'danger' 
+      });
     }
   };
 
   useEffect(() => {
-    fetchStudentData();
-    fetchNotifications();
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        await fetchStudentData();
+        await fetchAvailableCourses();
+        await fetchNotifications();
+      } catch (err) {
+        console.error('Initial data fetch error:', err);
+        setError('Failed to load initial data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
 
     // Set up polling for new notifications every 30 seconds
     const notificationInterval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(notificationInterval);
   }, [navigate]);
+
+  useEffect(() => {
+    // Update courses when student data changes
+    if (student) {
+      fetchAvailableCourses();
+    }
+  }, [student]);
 
   const filteredCourses = courses.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -237,6 +288,16 @@ const fetchNotifications = async () => {
             </Nav.Link>
           </Nav.Item>
           <Nav.Item>
+  <Nav.Link 
+    eventKey="transcripts" 
+    active={activeKey === 'transcripts'}
+    onClick={() => setActiveKey('transcripts')}
+    className="d-flex align-items-center"
+  >
+    <JournalBookmark className="me-2" /> Transcripts
+  </Nav.Link>
+</Nav.Item>
+          <Nav.Item>
             <Nav.Link 
               eventKey="messages" 
               active={activeKey === 'messages'}
@@ -291,6 +352,7 @@ const fetchNotifications = async () => {
                 {activeKey === 'grades' && 'Grades'}
                 {activeKey === 'messages' && 'Messages'}
                 {activeKey === 'settings' && 'Settings'}
+                {activeKey === 'transcripts' && 'MyTranscripts'}
               </h4>
             </Navbar.Brand>
             
@@ -432,7 +494,7 @@ const fetchNotifications = async () => {
                                 {course.description || 'No description available'}
                               </Card.Text>
                               <div className="d-flex flex-wrap gap-2 small text-muted mb-3">
-                                <span><People className="me-1" /> {course.students?.length || 0} students</span>
+                                <span><People className="me-1" /> {course.studentCount} students</span>
                                 <span><Clock className="me-1" /> {course.duration}</span>
                               </div>
                               <Button 
@@ -467,73 +529,75 @@ const fetchNotifications = async () => {
           {activeKey === 'grades' && <Grades student={student} />}
           {activeKey === 'messages' && <Messages student={student} />}
           {activeKey === 'settings' && <Settings student={student} />}
+          {activeKey === 'transcripts' && <MyTranscripts student={student} />}
+
         </div>
       </div>
 
       {/* Notifications Modal */}
-   <Modal show={showNotifications} onHide={() => setShowNotifications(false)}>
-  <Modal.Header closeButton>
-    <Modal.Title>
-      My Notifications
-      {unreadCount > 0 && (
-        <Badge bg="danger" className="ms-2">
-          {unreadCount} new
-        </Badge>
-      )}
-    </Modal.Title>
-  </Modal.Header>
-  <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-    {notifications.length === 0 ? (
-      <div className="text-center py-4">
-        <Bell size={48} className="text-muted mb-3" />
-        <h5>No notifications yet</h5>
-        <p className="text-muted">
-          Notifications from your courses will appear here
-        </p>
-      </div>
-    ) : (
-      <ListGroup variant="flush">
-        {notifications.map((notification) => {
-          const courseName = notification.course?.name || 'General Announcement';
-          const courseCode = notification.course?.code ? `(${notification.course.code})` : '';
-          const instructorName = notification.postedBy 
-            ? `${notification.postedBy.firstName} ${notification.postedBy.lastName}`
-            : 'System';
+      <Modal show={showNotifications} onHide={() => setShowNotifications(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            My Notifications
+            {unreadCount > 0 && (
+              <Badge bg="danger" className="ms-2">
+                {unreadCount} new
+              </Badge>
+            )}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {notifications.length === 0 ? (
+            <div className="text-center py-4">
+              <Bell size={48} className="text-muted mb-3" />
+              <h5>No notifications yet</h5>
+              <p className="text-muted">
+                Notifications from your courses will appear here
+              </p>
+            </div>
+          ) : (
+            <ListGroup variant="flush">
+              {notifications.map((notification) => {
+                const courseName = notification.course?.name || 'General Announcement';
+                const courseCode = notification.course?.code ? `(${notification.course.code})` : '';
+                const instructorName = notification.postedBy 
+                  ? `${notification.postedBy.firstName} ${notification.postedBy.lastName}`
+                  : 'System';
 
-          return (
-            <ListGroup.Item 
-              key={notification._id}
-              action
-              className={`${!notification.isRead ? 'fw-bold' : ''}`}
-              onClick={() => !notification.isRead && markAsRead(notification._id)}
-            >
-              <div className="d-flex justify-content-between align-items-start">
-                <div className="me-3">
-                  <h6 className="mb-1">{notification.title}</h6>
-                  <p className="mb-1">{notification.message}</p>
-                </div>
-                {!notification.isRead && (
-                  <Badge bg="primary" pill>New</Badge>
-                )}
-              </div>
-              <div className="d-flex justify-content-between mt-2">
-                <small className="text-muted">
-                  {courseName} {courseCode}
-                </small>
-                <small className="text-muted">
-                  {notification.createdAt.toLocaleString()}
-                </small>
-              </div>
-              <small className="text-muted d-block mt-1">
-                From: {instructorName}
-              </small>
-            </ListGroup.Item>
-          );
-        })}
-      </ListGroup>
-    )}
-  </Modal.Body>
-</Modal>
+                return (
+                  <ListGroup.Item 
+                    key={notification._id}
+                    action
+                    className={`${!notification.isRead ? 'fw-bold' : ''}`}
+                    onClick={() => !notification.isRead && markAsRead(notification._id)}
+                  >
+                    <div className="d-flex justify-content-between align-items-start">
+                      <div className="me-3">
+                        <h6 className="mb-1">{notification.title}</h6>
+                        <p className="mb-1">{notification.message}</p>
+                      </div>
+                      {!notification.isRead && (
+                        <Badge bg="primary" pill>New</Badge>
+                      )}
+                    </div>
+                    <div className="d-flex justify-content-between mt-2">
+                      <small className="text-muted">
+                        {courseName} {courseCode}
+                      </small>
+                      <small className="text-muted">
+                        {notification.createdAt.toLocaleString()}
+                      </small>
+                    </div>
+                    <small className="text-muted d-block mt-1">
+                      From: {instructorName}
+                    </small>
+                  </ListGroup.Item>
+                );
+              })}
+            </ListGroup>
+          )}
+        </Modal.Body>
+      </Modal>
 
       {/* Toast Notification */}
       {notification && (

@@ -46,13 +46,23 @@ router.get('/schedule',
   authController.restrictTo('student'),
   studentController.getStudentSchedule
 );
+router.get('/courses/available',
+  authController.protect,
+  authController.restrictTo('student'),
+  studentController.getAvailableCourses
+);
 
 router.get('/assignments',
   authController.protect,
   authController.restrictTo('student'),
   studentController.getStudentAssignments
 );
-
+router.get(
+  '/:studentId/transcripts/:courseId',
+  authController.protect,
+  authController.restrictTo('student'),// Optional: protect with JWT
+  studentController.getStudentTranscript
+);
 router.get('/enrolled-courses', 
   authController.protect,
   authController.restrictTo('student'),

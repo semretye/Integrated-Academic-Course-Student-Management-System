@@ -16,6 +16,11 @@ router.patch('/:notificationId/read',
   notificationController.markNotificationAsRead
 );
 
+router.get('/courses/:courseId/notifications',
+  protect,
+  restrictTo('instructor'),
+  notificationController.getCourseNotifications
+);
 // Instructor routes
 router.post('/courses/:courseId',
   protect,

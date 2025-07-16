@@ -9,7 +9,6 @@ import {
   Spinner,
   Modal,
   Form,
-  Badge,
   Card
 } from 'react-bootstrap';
 
@@ -27,7 +26,6 @@ const StudentsTranscript = () => {
     remarks: ''
   });
 
-  // Enhanced data fetching with error handling
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -45,20 +43,21 @@ const StudentsTranscript = () => {
 
         setCourse(courseRes.data);
         
-        // Handle both possible response structures
-        const studentsData = studentsRes.data.students || studentsRes.data;
-        if (!Array.isArray(studentsData)) {
+        // Handle different possible response formats
+        let studentsData = [];
+        if (Array.isArray(studentsRes.data)) {
+          studentsData = studentsRes.data;
+        } else if (studentsRes.data?.data && Array.isArray(studentsRes.data.data)) {
+          studentsData = studentsRes.data.data;
+        } else if (studentsRes.data?.students && Array.isArray(studentsRes.data.students)) {
+          studentsData = studentsRes.data.students;
+        } else {
           throw new Error('Invalid students data format');
         }
         
         setStudents(studentsData);
-        console.log('Loaded students:', studentsData);
-        
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError(err.response?.data?.message || 
-                err.message || 
-                'Failed to load data. Please check console for details.');
+        setError(err.response?.data?.message || err.message || 'Failed to fetch data');
       } finally {
         setLoading(false);
       }
@@ -81,25 +80,29 @@ const StudentsTranscript = () => {
         }
       );
 
-      // Handle both response structures
-      const transcript = res.data.transcript || res.data;
+      // Handle different response formats
+      const transcript = res.data?.transcript || res.data || {};
       
       setTranscriptData({
-        assignments: transcript?.assignments || [{
-          name: '', 
-          score: '', 
-          maxScore: '', 
-          weight: '',
-          percentage: ''
-        }],
+        assignments: transcript?.assignments?.length > 0 
+          ? transcript.assignments 
+          : [{
+              name: '', 
+              score: '', 
+              maxScore: '', 
+              weight: '',
+              percentage: ''
+            }],
         remarks: transcript?.remarks || ''
       });
       
       setShowTranscriptModal(true);
     } catch (err) {
       console.error('Transcript load error:', err);
-      setError(err.response?.data?.message || 
-              'Failed to load transcript. Please try again.');
+      setError(
+        err.response?.data?.message || 
+        'Failed to load transcript. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -128,7 +131,7 @@ const StudentsTranscript = () => {
       ...transcriptData,
       assignments: [
         ...transcriptData.assignments,
-        { name: '', score: '', maxScore: '', weight: '' }
+        { name: '', score: '', maxScore: '', weight: '', percentage: '' }
       ]
     });
   };
@@ -154,15 +157,23 @@ const StudentsTranscript = () => {
       );
 
       setShowTranscriptModal(false);
-      // Refresh data
+      
+      // Refresh students list
       const studentsRes = await axios.get(
         `http://localhost:8080/api/courses/${courseId}/students`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setStudents(studentsRes.data.students || studentsRes.data);
       
+      // Handle response format
+      const updatedStudents = studentsRes.data?.data || studentsRes.data?.students || studentsRes.data;
+      if (Array.isArray(updatedStudents)) {
+        setStudents(updatedStudents);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save transcript');
+      setError(
+        err.response?.data?.message || 
+        'Failed to save transcript. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -250,8 +261,12 @@ const StudentsTranscript = () => {
         </Card.Body>
       </Card>
 
-      {/* Transcript Modal */}
-      <Modal show={showTranscriptModal} onHide={() => setShowTranscriptModal(false)} size="lg">
+      <Modal 
+        show={showTranscriptModal} 
+        onHide={() => setShowTranscriptModal(false)} 
+        size="lg"
+        backdrop="static"
+      >
         <Modal.Header closeButton>
           <Modal.Title>
             {selectedStudent?.name}'s Transcript
@@ -282,6 +297,7 @@ const StudentsTranscript = () => {
                         value={assignment.name}
                         onChange={(e) => handleTranscriptChange(index, 'name', e.target.value)}
                         placeholder="Assignment name"
+                        required
                       />
                     </td>
                     <td>
@@ -291,6 +307,7 @@ const StudentsTranscript = () => {
                         onChange={(e) => handleTranscriptChange(index, 'score', e.target.value)}
                         placeholder="Score"
                         min="0"
+                        required
                       />
                     </td>
                     <td>
@@ -300,6 +317,7 @@ const StudentsTranscript = () => {
                         onChange={(e) => handleTranscriptChange(index, 'maxScore', e.target.value)}
                         placeholder="Max score"
                         min="1"
+                        required
                       />
                     </td>
                     <td>
@@ -310,6 +328,7 @@ const StudentsTranscript = () => {
                         placeholder="Weight"
                         min="0"
                         max="100"
+                        required
                       />
                     </td>
                     <td className="align-middle">
@@ -363,10 +382,18 @@ const StudentsTranscript = () => {
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowTranscriptModal(false)}>
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowTranscriptModal(false)}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSaveTranscript} disabled={loading}>
+          <Button 
+            variant="primary" 
+            onClick={handleSaveTranscript} 
+            disabled={loading}
+          >
             {loading ? (
               <>
                 <Spinner as="span" animation="border" size="sm" className="me-2" />

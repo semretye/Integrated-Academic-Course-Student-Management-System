@@ -4,38 +4,19 @@ const User = require('../models/User');
 const { calculateFinalGrade } = require('../utils/gradeCalculator');
 const PDFDocument = require('pdfkit');
 
-exports.getTranscript = async (req, res) => {
-  try {
-    const transcript = await Transcript.findOne({
-      course: req.params.courseId,
-      student: req.params.studentId
-    }).populate('student course');
-
-    if (!transcript) {
-      return res.status(404).json({ message: 'Transcript not found' });
-    }
-
-    // Only allow student or teacher to access
-    if (req.user.role !== 'teacher' && req.user.id !== transcript.student._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized access' });
-    }
-
-    res.json(transcript);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
 exports.updateTranscript = async (req, res) => {
   try {
-    const { assignments, remarks } = req.body;
-    
-    // Validate assignments
-    if (!Array.isArray(assignments)) {
-      return res.status(400).json({ message: 'Assignments must be an array' });
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    // Calculate final grade
+    const { assignments, remarks } = req.body;
+
+    if (!Array.isArray(assignments)) {
+      return res.status(400).json({ success: false, message: 'Assignments must be an array' });
+    }
+
+    // Calculate final grade based on assignments
     const finalGradeData = calculateFinalGrade(assignments);
 
     const transcript = await Transcript.findOneAndUpdate(
@@ -55,11 +36,13 @@ exports.updateTranscript = async (req, res) => {
     ).populate('student course');
 
     res.json({
+      success: true,
       message: 'Transcript updated successfully',
       transcript
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Error in updateTranscript:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -69,14 +52,19 @@ exports.getCourseTranscripts = async (req, res) => {
       course: req.params.courseId
     }).populate('student', 'name email studentId');
 
-    res.json(transcripts);
+    res.json({
+      success: true,
+      transcripts
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Error in getCourseTranscripts:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+
 exports.getEnrolledStudents = async (req, res) => {
   try {
-    // First check if course exists
+    // Check if course exists
     const course = await Course.findById(req.params.courseId);
     if (!course) {
       return res.status(404).json({ 
@@ -85,49 +73,79 @@ exports.getEnrolledStudents = async (req, res) => {
       });
     }
 
-    // Then get students with full population
+    // Populate students with necessary fields
     const populatedCourse = await Course.findById(req.params.courseId)
       .populate({
         path: 'students',
-        select: 'name email studentId _id',
-        model: 'User'
+        select: '_id firstName lastName email studentId', // Include all needed fields
+        model: 'Student' // Make sure this matches your model name
       });
 
-    // Debug logging
-    console.log('Populated course students:', populatedCourse.students);
+    if (!populatedCourse.students || populatedCourse.students.length === 0) {
+      return res.status(200).json({ 
+        success: true,
+        data: [], // Consistent response format
+        message: 'No students enrolled in this course yet'
+      });
+    }
 
-    res.json({
+    // Format student data consistently
+    const students = populatedCourse.students.map(student => ({
+      _id: student._id,
+      studentId: student.studentId,
+      name: `${student.firstName} ${student.lastName}`,
+      email: student.email
+    }));
+
+    res.status(200).json({
       success: true,
-      count: populatedCourse.students.length,
-      students: populatedCourse.students || []
+      data: students, // Consistent response format
+      count: students.length
     });
+
   } catch (err) {
     console.error('Error in getEnrolledStudents:', err);
     res.status(500).json({ 
       success: false,
-      message: err.message 
+      message: 'Server error while fetching students',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
-// Update your existing endpoints to use consistent response format
+
 exports.getTranscript = async (req, res) => {
   try {
-    const transcript = await Transcript.findOne({
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    let transcript = await Transcript.findOne({
       course: req.params.courseId,
       student: req.params.studentId
     })
     .populate('student', 'name studentId')
     .populate('course', 'name code');
 
+    // If no transcript exists, create one
     if (!transcript) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Transcript not found' 
+      transcript = await Transcript.create({
+        course: req.params.courseId,
+        student: req.params.studentId,
+        assignments: [],
+        lastUpdatedBy: req.user.id
       });
+      
+      // Repopulate after creation
+      transcript = await Transcript.findById(transcript._id)
+        .populate('student', 'name studentId')
+        .populate('course', 'name code');
     }
 
     // Authorization check
-    if (req.user.role !== 'teacher' && req.user.id !== transcript.student._id.toString()) {
+    const isTeacher = req.user.role === 'teacher';
+    const isOwner = transcript.student._id.equals(req.user.id);
+
+    if (!isTeacher && !isOwner) {
       return res.status(403).json({ 
         success: false,
         message: 'Unauthorized access' 
@@ -139,6 +157,7 @@ exports.getTranscript = async (req, res) => {
       transcript
     });
   } catch (err) {
+    console.error('Error in getTranscript:', err);
     res.status(500).json({ 
       success: false,
       message: err.message 
@@ -154,10 +173,9 @@ exports.downloadTranscript = async (req, res) => {
     }).populate('student course');
 
     if (!transcript) {
-      return res.status(404).json({ message: 'Transcript not found' });
+      return res.status(404).json({ success: false, message: 'Transcript not found' });
     }
 
-    // Create PDF
     const doc = new PDFDocument();
     const filename = `transcript_${transcript.course.code}_${transcript.student.studentId}.pdf`;
 
@@ -166,7 +184,6 @@ exports.downloadTranscript = async (req, res) => {
 
     doc.pipe(res);
 
-    // Add content to PDF
     doc.fontSize(20).text('Semret Tech School', { align: 'center' });
     doc.moveDown();
     doc.fontSize(16).text('Official Transcript', { align: 'center' });
@@ -176,7 +193,6 @@ exports.downloadTranscript = async (req, res) => {
     doc.text(`Course: ${transcript.course.name} (${transcript.course.code})`);
     doc.moveDown();
 
-    // Add assignments table
     doc.fontSize(12).text('Assignments:', { underline: true });
     doc.moveDown(0.5);
 
@@ -187,14 +203,15 @@ exports.downloadTranscript = async (req, res) => {
     doc.text('Grade', 450, doc.y);
     doc.moveDown(0.5);
 
-    // Table rows
-    transcript.assignments.forEach(assignment => {
-      doc.text(assignment.name, 50);
-      doc.text(`${assignment.score}/${assignment.maxScore} (${assignment.percentage}%)`, 250);
-      doc.text(`${assignment.weight}%`, 350);
-      doc.text(calculateLetterGrade(assignment.percentage), 450);
-      doc.moveDown(0.5);
-    });
+    if (Array.isArray(transcript.assignments)) {
+      transcript.assignments.forEach(assignment => {
+        doc.text(assignment.name, 50);
+        doc.text(`${assignment.score}/${assignment.maxScore} (${assignment.percentage}%)`, 250);
+        doc.text(`${assignment.weight}%`, 350);
+        doc.text(calculateLetterGrade(assignment.percentage), 450);
+        doc.moveDown(0.5);
+      });
+    }
 
     doc.moveDown();
     doc.text(`Final Grade: ${transcript.finalGrade} (${transcript.finalPercentage}%)`, { bold: true });
@@ -204,7 +221,8 @@ exports.downloadTranscript = async (req, res) => {
 
     doc.end();
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Error in downloadTranscript:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

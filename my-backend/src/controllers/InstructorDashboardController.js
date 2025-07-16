@@ -11,7 +11,6 @@ exports.getDashboardStats = async (req, res) => {
       throw new Error('Database not connected');
     }
 
-    // Get counts in parallel
     const [instructors, students, courses, pendingApprovals, pendingPayments] = await Promise.all([
       Instructure.countDocuments(),
       Student.countDocuments(),
