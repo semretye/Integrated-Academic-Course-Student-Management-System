@@ -7,8 +7,10 @@ function AddCourse() {
     code: '',
     description: '',
     duration: '',
+    price: '', // Added price
   });
-  const [image, setImage] = useState(null); // Add state for image
+
+  const [image, setImage] = useState(null);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -20,7 +22,7 @@ function AddCourse() {
   };
 
   const handleImageChange = (e) => {
-    setImage(e.target.files[0]); // Store the selected file
+    setImage(e.target.files[0]);
   };
 
   const validate = () => {
@@ -28,7 +30,10 @@ function AddCourse() {
     if (!course.name.trim()) errors.name = 'Course name is required';
     if (!course.code.trim()) errors.code = 'Course code is required';
     if (!course.duration.trim()) errors.duration = 'Duration is required';
-    if (!image) errors.image = 'Course image is required'; // Validate image
+    if (!course.price || isNaN(course.price) || parseFloat(course.price) < 0) {
+      errors.price = 'Valid price is required';
+    }
+    if (!image) errors.image = 'Course image is required';
     return errors;
   };
 
@@ -39,27 +44,28 @@ function AddCourse() {
       setErrors(validationErrors);
       return;
     }
+
     setErrors({});
     setSuccessMessage('');
 
     try {
       const formData = new FormData();
-      formData.append('image', image); // Add image to form data
+      formData.append('image', image);
       formData.append('name', course.name);
       formData.append('code', course.code);
       formData.append('description', course.description);
       formData.append('duration', course.duration);
+      formData.append('price', course.price); // Append price
 
       const response = await axios.post('http://localhost:8080/api/courses', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-        
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       console.log('Course created:', response.data);
       setSuccessMessage('Course added successfully!');
 
       // Reset form
-      setCourse({ name: '', code: '', description: '', duration: '' });
+      setCourse({ name: '', code: '', description: '', duration: '', price: '' });
       setImage(null);
     } catch (err) {
       console.error('Error adding course:', err);
@@ -73,7 +79,6 @@ function AddCourse() {
 
   return (
     <div className="container mt-4">
- 
       <h2>Add Course</h2>
 
       {successMessage && <div className="alert alert-success">{successMessage}</div>}
@@ -130,6 +135,22 @@ function AddCourse() {
           />
           {errors.duration && <div className="invalid-feedback">{errors.duration}</div>}
         </div>
+
+        <div className="mb-3">
+          <label htmlFor="price" className="form-label">Course Price (e.g., 100)</label>
+          <input
+            type="number"
+            id="price"
+            name="price"
+            value={course.price}
+            onChange={handleChange}
+            className={`form-control ${errors.price ? 'is-invalid' : ''}`}
+            min="0"
+            step="0.01"
+          />
+          {errors.price && <div className="invalid-feedback">{errors.price}</div>}
+        </div>
+
         <div className="mb-3">
           <label htmlFor="image" className="form-label">Course Image</label>
           <input
@@ -142,8 +163,6 @@ function AddCourse() {
           />
           {errors.image && <div className="invalid-feedback">{errors.image}</div>}
         </div>
-
-      
 
         <button type="submit" className="btn btn-primary">Add Course</button>
       </form>

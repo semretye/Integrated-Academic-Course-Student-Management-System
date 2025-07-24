@@ -36,6 +36,11 @@ const courseSchema = new mongoose.Schema({
       message: 'Please select a valid duration'
     }
   },
+  price: {
+  type: Number,
+  required: [true, 'Course price is required'],
+  min: [0, 'Price cannot be negative']
+},
   instructor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Instructure',

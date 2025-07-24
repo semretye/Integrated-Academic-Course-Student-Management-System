@@ -162,11 +162,11 @@ exports.getCourseById = async (req, res) => {
 
 exports.createCourse = async (req, res) => {
   try {
-    const { name, code, description, duration } = req.body;
+    const { name, code, description, duration,price } = req.body;
     const thumbnail = req.file ? `/uploads/courses/${req.file.filename}` : '';
 
-    if (!name || !code || !duration) {
-      return res.status(400).json({ message: 'Name, code, and duration are required' });
+    if (!name || !code || !duration|| price == null) {
+      return res.status(400).json({ message: 'Name, code,price and duration are required' });
     }
 
     const existing = await Course.findOne({ code });
@@ -180,6 +180,7 @@ exports.createCourse = async (req, res) => {
       description,
       duration,
       thumbnail,
+       price,
       // No instructor assigned initially
       status: 'active' // You might want to set this as draft initially
     });
@@ -206,11 +207,11 @@ exports.getAllCourses = async (req, res) => {
 exports.updateCourse = async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { name, code, description, duration } = req.body;
+    const { name, code, description, duration,price } = req.body;
 
     const updatedCourse = await Course.findByIdAndUpdate(
       courseId,
-      { name, code, description, duration },
+      { name, code, description, duration,price },
       { new: true, runValidators: true }
     );
 

@@ -18,7 +18,12 @@ const path = require('path');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    // Create uploads directory if it doesn't exist
+    const uploadDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -757,7 +762,11 @@ exports.getMyProfile = async (req, res) => {
     }
 
     const studentObj = student.toObject();
-    studentObj.profilePicture = getFullImageUrl(req, student.profilePicture);
+    
+    // Construct full URL for profile picture
+    studentObj.profilePicture = student.profilePicture 
+      ? `${req.protocol}://${req.get('host')}/${student.profilePicture.replace(/\\/g, '/')}`
+      : null;
     
     res.status(200).json({
       success: true,
@@ -775,10 +784,9 @@ exports.getMyProfile = async (req, res) => {
 exports.updateMyProfile = async (req, res) => {
   try {
     const studentId = req.user._id;
-
     const updates = { ...req.body };
 
-    // If image was uploaded
+    // Handle profile picture update
     if (req.file) {
       updates.profilePicture = req.file.path;
     }
@@ -793,11 +801,11 @@ exports.updateMyProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Format profile picture URL
+    // Format response with complete URL
     const studentObj = updatedStudent.toObject();
-    if (studentObj.profilePicture) {
-      studentObj.profilePicture = `${req.protocol}://${req.get('host')}/${studentObj.profilePicture.replace(/\\/g, '/')}`;
-    }
+    studentObj.profilePicture = updatedStudent.profilePicture 
+      ? `${req.protocol}://${req.get('host')}/${updatedStudent.profilePicture.replace(/\\/g, '/')}`
+      : null;
 
     res.status(200).json({
       success: true,
@@ -809,6 +817,7 @@ exports.updateMyProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to update profile' });
   }
 };
+
 exports.deleteMyAccount = async (req, res) => {
   try {
     const studentId = req.user._id;

@@ -26,6 +26,7 @@ import UploadMaterial from './components/UploadMaterial';
 import AddCourse from './components/AddCourses';
 import AdminRegister from './components/AdminRegister';
 import ManageCourses from './components/ManageCourses';
+import CoursePage from './components/CoursePage';
 import AssignInstructure from './components/AssignInstructure';
 import StudentsTranscript from './components/StudentsTranscript';
 
@@ -52,6 +53,7 @@ function App() {
         <Route path="/ManageInstructures" element={<ManageInstructors />} />
         <Route path="/InstructureHomepage" element={<InstructorHomePage />} />
           <Route path="/StudentHomePage" element={<StudentHomePage />} />
+        <Route path="/courses/:courseId" element={<CoursePage />}/>
 
         {/* Course Detail with nested routes */}
         <Route path="/instructor/courses/:courseId" element={<CourseDetailPage />}>

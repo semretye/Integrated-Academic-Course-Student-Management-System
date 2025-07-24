@@ -11,7 +11,8 @@ function ManageCourses() {
     name: '',
     code: '',
     description: '',
-    duration: ''
+    duration: '',
+    price: ''
   });
 
   useEffect(() => {
@@ -42,7 +43,8 @@ function ManageCourses() {
       name: course.name,
       code: course.code,
       description: course.description,
-      duration: course.duration
+      duration: course.duration,
+      price: course.price || ''
     });
   };
 
@@ -57,7 +59,7 @@ function ManageCourses() {
         editedCourse
       );
 
-      const updatedCourse = res.data.course;
+      const updatedCourse = res.data.course || res.data;
 
       setCourses(prev =>
         prev.map(course =>
@@ -80,6 +82,7 @@ function ManageCourses() {
             <th>Code</th>
             <th>Description</th>
             <th>Duration</th>
+            <th>Price (ብር)</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -121,6 +124,16 @@ function ManageCourses() {
                     />
                   </td>
                   <td>
+                    <Form.Control
+                      type="number"
+                      name="price"
+                      value={editedCourse.price}
+                      onChange={handleEditChange}
+                      min="0"
+                      step="0.01"
+                    />
+                  </td>
+                  <td>
                     <Button variant="success" size="sm" className="me-2" onClick={saveEdit}>
                       <CheckCircle className="me-1" /> Save
                     </Button>
@@ -137,6 +150,7 @@ function ManageCourses() {
                   </td>
                   <td>{course.description}</td>
                   <td>{course.duration}</td>
+                  <td>{parseFloat(course.price || 0).toFixed(2)} ብር</td>
                   <td>
                     <Button variant="primary" size="sm" className="me-2" onClick={() => startEdit(course)}>
                       <PencilSquare className="me-1" /> Edit

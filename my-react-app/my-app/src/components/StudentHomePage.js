@@ -30,6 +30,23 @@ function StudentHomePage() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
+  const DEFAULT_PROFILE_PIC = '/images/default-profile.png';
+  const DEFAULT_COURSE_THUMBNAIL = '/images/default-course.png';
+  
+  const getImageUrl = (path) => {
+    if (!path) return DEFAULT_PROFILE_PIC;
+    
+    if (path.startsWith('http') || path.startsWith('data:')) {
+      return path;
+    }
+    
+    if (path.startsWith('/uploads')) {
+      return `${API_BASE_URL}${path}`;
+    }
+    
+    return `${API_BASE_URL}/uploads/${path}`;
+  };
 
   const fetchStudentData = async () => {
     try {
@@ -40,8 +57,7 @@ function StudentHomePage() {
         headers: { 'Authorization': `Bearer ${token}` }
       };
 
-      // Fetch student data with enrolled courses populated
-      const studentRes = await axios.get('http://localhost:8080/api/students/me', {
+      const studentRes = await axios.get(`${API_BASE_URL}/api/students/me`, {
         ...config,
         params: { populate: 'enrolledCourses' }
       });
@@ -50,7 +66,16 @@ function StudentHomePage() {
         throw new Error(studentRes.data.message || 'Failed to fetch student data');
       }
 
-      setStudent(studentRes.data.data);
+      const studentData = studentRes.data.data;
+      
+      if (studentData.profilePicture) {
+        studentData.profilePicture = getImageUrl(studentData.profilePicture);
+      } else {
+        studentData.profilePicture = DEFAULT_PROFILE_PIC;
+      }
+
+      setStudent(studentData);
+      setLoading(false);
     } catch (err) {
       console.error('Student data fetch error:', {
         message: err.message,
@@ -64,16 +89,17 @@ function StudentHomePage() {
   const fetchAvailableCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:8080/api/students/courses/available', {
+      const response = await axios.get(`${API_BASE_URL}/api/students/courses/available`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.data.success) {
-        // Merge with student's enrollment status
         const coursesWithEnrollment = response.data.data.map(course => ({
           ...course,
           isEnrolled: student?.enrolledCourses?.some(ec => ec._id === course._id) || false,
-          studentCount: course.students?.length || 0
+          studentCount: course.students?.length || 0,
+          price: course.price || 0, // Added price field
+          thumbnail: getImageUrl(course.thumbnail) || DEFAULT_COURSE_THUMBNAIL
         }));
         setCourses(coursesWithEnrollment);
       }
@@ -86,15 +112,14 @@ function StudentHomePage() {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:8080/api/students/notifications', {
+      const response = await axios.get(`${API_BASE_URL}/api/students/notifications`, {
         headers: { 'Authorization': `Bearer ${token}` },
-        params: { timestamp: Date.now() } // Cache buster
+        params: { timestamp: Date.now() }
       });
 
       if (response.data && response.data.success) {
         const notifications = response.data.data || [];
         
-        // Process notifications with proper date handling
         const processedNotifications = notifications.map(notif => ({
           ...notif,
           createdAt: new Date(notif.createdAt),
@@ -123,11 +148,11 @@ function StudentHomePage() {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `http://localhost:8080/api/notifications/${notificationId}/read`,
+        `${API_BASE_URL}/api/notifications/${notificationId}/read`,
         {},
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
-      fetchNotifications(); // Refresh the notifications
+      fetchNotifications();
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -139,7 +164,7 @@ function StudentHomePage() {
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
 
       const res = await axios.post(
-        `http://localhost:8080/api/courses/${courseId}/enroll`, 
+        `${API_BASE_URL}/api/courses/${courseId}/enroll`, 
         {}, 
         config
       );
@@ -149,7 +174,6 @@ function StudentHomePage() {
         variant: 'success' 
       });
 
-      // Refresh both student data and courses
       await fetchStudentData();
       await fetchAvailableCourses();
     } catch (err) {   
@@ -177,13 +201,11 @@ function StudentHomePage() {
 
     fetchData();
 
-    // Set up polling for new notifications every 30 seconds
     const notificationInterval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(notificationInterval);
   }, [navigate]);
 
   useEffect(() => {
-    // Update courses when student data changes
     if (student) {
       fetchAvailableCourses();
     }
@@ -209,33 +231,89 @@ function StudentHomePage() {
     </Alert>
   );
 
+  const ProfileImage = ({ src, size = 100 }) => (
+    <Image 
+      src={src}
+      roundedCircle 
+      width={size} 
+      height={size} 
+      className={`border border-${size === 100 ? '3' : '1'} ${size === 100 ? 'border-primary' : ''} mb-2`}
+      onError={(e) => {
+        e.target.onerror = null; 
+       
+      }}
+    />
+  );
+
+  const renderCourseCards = () => (
+    <Row className="g-4">
+      {filteredCourses.map(course => (
+        <Col md={4} key={course._id}>
+          <Card className="h-100">
+            <Card.Img 
+              variant="top" 
+              src={course.thumbnail}
+              height="160"
+              style={{ objectFit: 'cover' }}
+              onError={(e) => {
+                e.target.onerror = null; 
+                e.target.src = DEFAULT_COURSE_THUMBNAIL;
+              }}
+            />
+            <Card.Body className="d-flex flex-column">
+              <div className="d-flex justify-content-between align-items-start mb-2">
+                <Card.Title>{course.name}</Card.Title>
+                <Badge bg="light" text="dark">{course.code}</Badge>
+              </div>
+              <Card.Text className="flex-grow-1">
+                {course.description || 'No description available'}
+              </Card.Text>
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <div className="d-flex flex-wrap gap-2 small text-muted">
+                  <span><People className="me-1" /> {course.studentCount} students</span>
+                  <span><Clock className="me-1" /> {course.duration}</span>
+                </div>
+                <h5 className="text-primary mb-0">{course.price || '0'} ብር</h5>
+              </div>
+             <Button 
+  variant={course.isEnrolled ? 'outline-success' : 'primary'} 
+  onClick={() => course.isEnrolled ? null : navigate(`/courses/${course._id}`)}
+>
+  {course.isEnrolled ? (
+    <>
+      <CheckCircle className="me-1" /> Enrolled
+    </>
+  ) : (
+    <>
+      <Plus className="me-1" /> View Details
+    </>
+  )}
+</Button>
+            </Card.Body>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+
   return (
     <div className="d-flex vh-100">
       {/* Sidebar */}
       <div className="d-flex flex-column flex-shrink-0 p-3 bg-dark text-white" style={{ width: '280px' }}>
-        {/* Branding */}
         <div className="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
           <Book className="bi me-2" width="32" height="32" />
           <span className="fs-4">ScholarPro</span>
         </div>
         <hr />
         
-        {/* Profile */}
         {student && (
           <div className="text-center mb-4">
-            <Image 
-              src={student.profilePicture || 'https://via.placeholder.com/150'} 
-              roundedCircle 
-              width={100} 
-              height={100} 
-              className="border border-3 border-primary mb-2"
-            />
+            <ProfileImage src={student.profilePicture} size={100} />
             <h5>{student.firstName} {student.lastName}</h5>
             <small className="text-muted">{student.email}</small>
           </div>
         )}
-        
-        {/* Navigation */}
+
         <Nav variant="pills" className="flex-column mb-auto">
           <Nav.Item>
             <Nav.Link 
@@ -288,15 +366,15 @@ function StudentHomePage() {
             </Nav.Link>
           </Nav.Item>
           <Nav.Item>
-  <Nav.Link 
-    eventKey="transcripts" 
-    active={activeKey === 'transcripts'}
-    onClick={() => setActiveKey('transcripts')}
-    className="d-flex align-items-center"
-  >
-    <JournalBookmark className="me-2" /> Transcripts
-  </Nav.Link>
-</Nav.Item>
+            <Nav.Link 
+              eventKey="transcripts" 
+              active={activeKey === 'transcripts'}
+              onClick={() => setActiveKey('transcripts')}
+              className="d-flex align-items-center"
+            >
+              <JournalBookmark className="me-2" /> Transcripts
+            </Nav.Link>
+          </Nav.Item>
           <Nav.Item>
             <Nav.Link 
               eventKey="messages" 
@@ -340,7 +418,6 @@ function StudentHomePage() {
 
       {/* Main Content */}
       <div className="flex-grow-1 overflow-auto">
-        {/* Top Navigation */}
         <Navbar bg="light" expand="lg" className="shadow-sm p-3">
           <Container fluid>
             <Navbar.Brand>
@@ -387,23 +464,25 @@ function StudentHomePage() {
               </Button>
               
               <Image 
-                src={student?.profilePicture || 'https://via.placeholder.com/40'} 
+                src={student?.profilePicture}
                 roundedCircle 
                 width={40} 
                 height={40} 
                 className="border"
+                onError={(e) => {
+                  e.target.onerror = null; 
+               
+                }}
               />
             </div>
           </Container>
         </Navbar>
 
-        {/* Content Area */}
         <div className="p-4">
           {activeKey === 'dashboard' && (
             <>
               <h5 className="mb-4">Welcome back, {student?.firstName}!</h5>
               
-              {/* Stats Cards */}
               <Row className="mb-4 g-4">
                 <Col md={3}>
                   <Card className="h-100 shadow-sm">
@@ -462,7 +541,6 @@ function StudentHomePage() {
                 </Col>
               </Row>
               
-              {/* Courses Section */}
               <Card className="shadow-sm mb-4">
                 <Card.Header className="bg-white">
                   <h5 className="mb-0">Available Courses</h5>
@@ -475,48 +553,7 @@ function StudentHomePage() {
                       <p className="text-muted">You may have enrolled in all available courses</p>
                     </div>
                   ) : (
-                    <Row className="g-4">
-                      {filteredCourses.map(course => (
-                        <Col md={4} key={course._id}>
-                          <Card className="h-100">
-                            <Card.Img 
-                              variant="top" 
-                              src={course.thumbnail || 'https://via.placeholder.com/300x200'} 
-                              height="160"
-                              style={{ objectFit: 'cover' }}
-                            />
-                            <Card.Body className="d-flex flex-column">
-                              <div className="d-flex justify-content-between align-items-start mb-2">
-                                <Card.Title>{course.name}</Card.Title>
-                                <Badge bg="light" text="dark">{course.code}</Badge>
-                              </div>
-                              <Card.Text className="flex-grow-1">
-                                {course.description || 'No description available'}
-                              </Card.Text>
-                              <div className="d-flex flex-wrap gap-2 small text-muted mb-3">
-                                <span><People className="me-1" /> {course.studentCount} students</span>
-                                <span><Clock className="me-1" /> {course.duration}</span>
-                              </div>
-                              <Button 
-                                variant={course.isEnrolled ? 'outline-success' : 'primary'} 
-                                onClick={() => !course.isEnrolled && handleEnroll(course._id)}
-                                disabled={course.isEnrolled}
-                              >
-                                {course.isEnrolled ? (
-                                  <>
-                                    <CheckCircle className="me-1" /> Enrolled
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="me-1" /> Enroll Now
-                                  </>
-                                )}
-                              </Button>
-                            </Card.Body>
-                          </Card>
-                        </Col>
-                      ))}
-                    </Row>
+                    renderCourseCards()
                   )}
                 </Card.Body>
               </Card>
@@ -530,11 +567,9 @@ function StudentHomePage() {
           {activeKey === 'messages' && <Messages student={student} />}
           {activeKey === 'settings' && <Settings student={student} />}
           {activeKey === 'transcripts' && <MyTranscripts student={student} />}
-
         </div>
       </div>
 
-      {/* Notifications Modal */}
       <Modal show={showNotifications} onHide={() => setShowNotifications(false)}>
         <Modal.Header closeButton>
           <Modal.Title>
@@ -599,7 +634,6 @@ function StudentHomePage() {
         </Modal.Body>
       </Modal>
 
-      {/* Toast Notification */}
       {notification && (
         <div className="position-fixed bottom-0 end-0 p-3" style={{ zIndex: 11 }}>
           <div className={`toast show bg-${notification.variant} text-white`} role="alert">

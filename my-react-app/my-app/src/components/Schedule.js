@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import Container from 'react-bootstrap/Container';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
+import Card from 'react-bootstrap/Card';
+import ListGroup from 'react-bootstrap/ListGroup';
+import Spinner from 'react-bootstrap/Spinner';
+import Alert from 'react-bootstrap/Alert';
+import Button from 'react-bootstrap/Button';
+import Badge from 'react-bootstrap/Badge';
 
 const Schedule = () => {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
@@ -68,270 +77,177 @@ const Schedule = () => {
     }
   };
 
-  if (loadingCourses) return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '200px'
-    }}>
-      <div style={{
-        width: '40px',
-        height: '40px',
-        border: '4px solid #f3f3f3',
-        borderTop: '4px solid #3498db',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite'
-      }}></div>
-      <p style={{ marginTop: '15px' }}>Loading your courses...</p>
-    </div>
-  );
+  if (loadingCourses) {
+    return (
+      <Container className="d-flex justify-content-center align-items-center vh-100">
+        <div className="text-center">
+          <Spinner animation="border" role="status" variant="primary">
+            <span className="visually-hidden">Loading...</span>
+          </Spinner>
+          <p className="mt-3">Loading your courses...</p>
+        </div>
+      </Container>
+    );
+  }
 
-  if (error) return (
-    <div style={{
-      textAlign: 'center',
-      padding: '20px',
-      color: '#d32f2f'
-    }}>
-      <p>{error}</p>
-      <button 
-        style={{
-          background: '#3f51b5',
-          color: 'white',
-          border: 'none',
-          padding: '8px 16px',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          marginTop: '10px'
-        }}
-        onClick={() => window.location.reload()}
-      >
-        Try Again
-      </button>
-    </div>
-  );
+  if (error) {
+    return (
+      <Container className="d-flex justify-content-center align-items-center vh-100">
+        <Alert variant="danger" className="text-center">
+          <Alert.Heading>Something went wrong</Alert.Heading>
+          <p>{error}</p>
+          <Button variant="primary" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
-    <div style={{
-      display: 'flex',
-      minHeight: 'calc(100vh - 60px)'
-    }}>
-      {/* Sidebar */}
-      <div style={{
-        width: '350px',
-        padding: '20px',
-        background: '#f8f9fa',
-        borderRight: '1px solid #e0e0e0',
-        overflowY: 'auto'
-      }}>
-        <h2 style={{
-          marginBottom: '20px',
-          color: '#333'
-        }}>Your Enrolled Courses</h2>
-        
-        {enrolledCourses.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: '#666'
-          }}>
-            <i className="fas fa-book-open" style={{
-              fontSize: '48px',
-              color: '#ccc',
-              marginBottom: '15px'
-            }}></i>
-            <h3>No enrolled courses</h3>
-            <p>You haven't enrolled in any courses yet.</p>
+    <Container fluid className="px-0">
+      <Row className="g-0">
+        {/* Sidebar - Course List */}
+        <Col lg={4} xl={3} className="bg-white border-end">
+          <div className="p-3 border-bottom">
+            <h2 className="h5 mb-1">Your Enrolled Courses</h2>
+            <p className="text-muted small mb-0">{enrolledCourses.length} courses</p>
           </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr',
-            gap: '15px'
-          }}>
-            {enrolledCourses.map(course => (
-              <div 
-                key={course._id} 
-                style={{
-                  background: 'white',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderLeft: selectedCourse === course._id ? '4px solid #3f51b5' : 'none'
-                }}
-                onClick={() => handleCourseSelect(course._id)}
-              >
-                <div style={{
-                  height: '120px',
-                  overflow: 'hidden'
-                }}>
-                  <img 
-                    src={course.thumbnail } 
-                    alt={course.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover'
-                    }}
-                    onError={(e) => {
-                      e.target.onerror = null; 
-                 
-                    }}
-                  />
-                </div>
-                <div style={{ padding: '15px' }}>
-                  <h3 style={{ margin: '0 0 5px 0' }}>{course.name}</h3>
-                  <p style={{
-                    color: '#666',
-                    fontSize: '0.9em',
-                    margin: '0 0 5px 0'
-                  }}>{course.code}</p>
-                  <p style={{
-                    color: '#666',
-                    fontSize: '0.9em',
-                    margin: '0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}>
-                    <i className="fas fa-user-tie"></i> 
-                    {course.instructor?.firstName} {course.instructor?.lastName}
-                  </p>
-                </div>
+          
+          {enrolledCourses.length === 0 ? (
+            <div className="p-4 text-center">
+              <div className="bg-light rounded-circle d-inline-flex p-4 mb-3">
+                <span className="text-muted fs-4">📚</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Main Content */}
-      <div style={{
-        flex: '1',
-        padding: '20px',
-        overflowY: 'auto'
-      }}>
-        {loadingSchedule ? (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '200px'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              border: '4px solid #f3f3f3',
-              borderTop: '4px solid #3498db',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }}></div>
-            <p style={{ marginTop: '15px' }}>Loading schedule...</p>
-          </div>
-        ) : error ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '20px',
-            color: '#d32f2f'
-          }}>
-            <p>{error}</p>
-          </div>
-        ) : selectedCourse ? (
-          schedule.length > 0 ? (
-            <div>
-              <h2 style={{
-                marginBottom: '20px',
-                color: '#333'
-              }}>Scheduled Classes</h2>
-              
-              <div style={{
-                display: 'grid',
-                gap: '15px'
-              }}>
-                {schedule.map((item) => (
-                  <div key={item._id} style={{
-                    background: 'white',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}>
-                    <h3 style={{ margin: '0 0 10px 0' }}>{item.title}</h3>
-                    <div style={{
-                      display: 'flex',
-                      gap: '20px',
-                      marginBottom: '10px'
-                    }}>
-                      <p style={{ margin: '0' }}>
-                        <i className="fas fa-calendar-alt" style={{ marginRight: '5px' }}></i>
-                        <strong>Date:</strong> {item.date}
-                      </p>
-                      <p style={{ margin: '0' }}>
-                        <i className="fas fa-clock" style={{ marginRight: '5px' }}></i>
-                        <strong>Time:</strong> {item.time}
-                      </p>
-                    </div>
-                    {item.meetingLink && (
-                      <a 
-                        href={item.meetingLink} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-block',
-                          background: '#3f51b5',
-                          color: 'white',
-                          padding: '8px 16px',
-                          borderRadius: '4px',
-                          textDecoration: 'none',
-                          marginBottom: '10px'
-                        }}
-                      >
-                        <i className="fas fa-video" style={{ marginRight: '5px' }}></i>
-                        Join Meeting
-                      </a>
-                    )}
-                    {item.description && (
-                      <p style={{ margin: '10px 0 0 0' }}>
-                        <i className="fas fa-align-left" style={{ marginRight: '5px' }}></i>
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <h3 className="h5 mb-2">No enrolled courses</h3>
+              <p className="text-muted mb-3">You haven't enrolled in any courses yet.</p>
+              <Button variant="primary" onClick={() => navigate('/courses')}>
+                Browse Courses
+              </Button>
             </div>
           ) : (
-            <div style={{
-              textAlign: 'center',
-              padding: '40px 20px',
-              color: '#666'
-            }}>
-              <i className="fas fa-calendar-times" style={{
-                fontSize: '48px',
-                color: '#ccc',
-                marginBottom: '15px'
-              }}></i>
-              <p>No scheduled classes found for this course.</p>
-            </div>
-          )
-        ) : (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: '#666'
-          }}>
-            <i className="fas fa-hand-pointer" style={{
-              fontSize: '48px',
-              color: '#ccc',
-              marginBottom: '15px'
-            }}></i>
-            <p>Select a course to view its schedule</p>
+            <ListGroup variant="flush" className="overflow-auto" style={{ maxHeight: 'calc(100vh - 80px)' }}>
+              {enrolledCourses.map(course => (
+                <ListGroup.Item 
+                  key={course._id}
+                  action
+                  active={selectedCourse === course._id}
+                  onClick={() => handleCourseSelect(course._id)}
+                  className="border-0 rounded-0 px-4 py-3"
+                >
+                  <div className="d-flex align-items-center">
+                    <div className="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '40px', height: '40px' }}>
+                      <span className="fs-5">📖</span>
+                    </div>
+                    <div className="flex-grow-1">
+                      <h5 className="mb-1 text-truncate">{course.name}</h5>
+                      <p className="small text-muted mb-1">{course.code}</p>
+                      <p className="small text-muted mb-0">
+                        Instructor: {course.instructor?.firstName} {course.instructor?.lastName}
+                      </p>
+                    </div>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          )}
+        </Col>
+
+        {/* Main Content - Schedule */}
+        <Col lg={8} xl={9} className="bg-light">
+          <div className="p-4" style={{ minHeight: 'calc(100vh - 80px)' }}>
+            {loadingSchedule ? (
+              <div className="d-flex justify-content-center align-items-center h-100">
+                <div className="text-center">
+                  <Spinner animation="border" role="status" variant="primary">
+                    <span className="visually-hidden">Loading...</span>
+                  </Spinner>
+                  <p className="mt-3">Loading schedule...</p>
+                </div>
+              </div>
+            ) : error ? (
+              <Alert variant="danger" className="text-center">
+                <p>{error}</p>
+              </Alert>
+            ) : selectedCourse ? (
+              schedule.length > 0 ? (
+                <div>
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h2 className="h4 mb-0">Scheduled Classes</h2>
+                    <Badge bg="secondary" pill>
+                      {schedule.length} sessions
+                    </Badge>
+                  </div>
+                  
+                  <Row xs={1} className="g-4">
+                    {schedule.map((item) => (
+                      <Col key={item._id}>
+                        <Card>
+                          <Card.Body>
+                            <Card.Title className="h5 mb-3">{item.title}</Card.Title>
+                            
+                            <div className="d-flex gap-4 mb-3">
+                              <div className="d-flex align-items-center">
+                                <span className="me-2">📅</span>
+                                <span className="text-muted">Date:</span>
+                                <span className="ms-1 fw-semibold">{item.date}</span>
+                              </div>
+                              <div className="d-flex align-items-center">
+                                <span className="me-2">⏰</span>
+                                <span className="text-muted">Time:</span>
+                                <span className="ms-1 fw-semibold">{item.time}</span>
+                              </div>
+                            </div>
+                            
+                            {item.meetingLink && (
+                              <Button 
+                                variant="primary" 
+                                href={item.meetingLink} 
+                                target="_blank"
+                                className="mb-3"
+                              >
+                                Join Meeting
+                              </Button>
+                            )}
+                            
+                            {item.description && (
+                              <Card.Text className="text-muted">
+                                <span className="me-2">📝</span>
+                                {item.description}
+                              </Card.Text>
+                            )}
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
+              ) : (
+                <div className="d-flex justify-content-center align-items-center h-100">
+                  <div className="text-center">
+                    <div className="bg-light rounded-circle d-inline-flex p-4 mb-3">
+                      <span className="text-muted fs-4">📅</span>
+                    </div>
+                    <h3 className="h5 mb-2">No Scheduled Classes</h3>
+                    <p className="text-muted">No classes scheduled for this course yet</p>
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="d-flex justify-content-center align-items-center h-100">
+                <div className="text-center">
+                  <div className="bg-light rounded-circle d-inline-flex p-4 mb-3">
+                    <span className="text-muted fs-4">👉</span>
+                  </div>
+                  <h3 className="h5 mb-2">Select a Course</h3>
+                  <p className="text-muted">Choose a course from the sidebar to view its schedule</p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+        </Col>
+      </Row>
+    </Container>
   );
 };
 

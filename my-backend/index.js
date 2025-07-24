@@ -31,7 +31,14 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static Files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'no-store');
+  }
+}));
+
 
 
 // Route logging
@@ -49,6 +56,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
+
 app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/students', require('./src/routes/studentRoutes'));
 app.use('/api/instructors', require('./src/routes/instructureRoutes'));
@@ -62,6 +70,7 @@ app.use('/api/instructors', require('./src/routes/instructordashboardRoutes'));
 app.use('/api/submissions', require('./src/routes/submissionRoutes'));
 app.use('/api/notifications', require('./src/routes/notificationRoutes'));
 app.use('/api', require('./src/routes/transcriptRoutes'));
+app.use('/api/payments', require('./src/routes/paymentRoutes'));
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
